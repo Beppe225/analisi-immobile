@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Analisi Immobile (PWA)</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0b1220">
+  <style>
+    :root { color-scheme: light; }
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;margin:0;background:#f4f6fb;color:#0b1220}
+    .wrap{max-width:720px;margin:0 auto;padding:18px}
+    .card{background:#fff;border-radius:16px;padding:16px;box-shadow:0 6px 20px rgba(0,0,0,.07);margin:12px 0}
+    h1{font-size:18px;margin:0 0 8px}
+    label{display:block;font-size:12px;margin:10px 0 6px;color:#445}
+    input{width:100%;padding:12px;border:1px solid #d8deea;border-radius:12px;font-size:16px}
+    .grid{display:grid;gap:12px}
+    @media(min-width:640px){ .grid{grid-template-columns:1fr 1fr} }
+    .row{display:flex;gap:10px}
+    button{flex:1;padding:12px 14px;border:0;border-radius:12px;background:#0b5fff;color:#fff;font-size:15px}
+    button.secondary{background:#e9eefc;color:#0b1220}
+    .kpi{display:grid;gap:10px}
+    .kpi .box{background:#0b1220;color:#fff;border-radius:14px;padding:14px}
+    .kpi .t{font-size:12px;opacity:.85}
+    .kpi .v{font-size:22px;font-weight:700;margin-top:6px}
+    .note{font-size:12px;color:#556;line-height:1.35}
+    .small{font-size:12px;color:#667}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Analisi immobile</h1>
+      <div class="note">
+        Calcolo principale: <b>Pmax = PV × (1 − utile%) − R</b><br>
+        Dove PV = prezzo vendita, R = ristrutturazione totale, utile% = margine desiderato sul prezzo di vendita.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="grid">
+        <div>
+          <label>Metri quadri (mq)</label>
+          <input id="mq" type="number" inputmode="decimal" placeholder="es. 257">
+        </div>
+        <div>
+          <label>Prezzo di vendita (PV) €</label>
+          <input id="pv" type="number" inputmode="decimal" placeholder="es. 1285000">
+        </div>
+
+        <div>
+          <label>Ristrutturazione (totale) €</label>
+          <input id="rTot" type="number" inputmode="decimal" placeholder="es. 205600">
+          <div class="small">Oppure compila €/mq qui sotto.</div>
+        </div>
+        <div>
+          <label>Ristrutturazione €/mq</label>
+          <input id="rMq" type="number" inputmode="decimal" placeholder="es. 800">
+          <div class="small">Se compili €/mq, il totale viene calcolato con mq.</div>
+        </div>
+
+        <div>
+          <label>Utile desiderato (%)</label>
+          <input id="uPerc" type="number" inputmode="decimal" placeholder="es. 42">
+        </div>
+        <div>
+          <label>Altri costi € (opzionale: notaio, agenzia, imposte)</label>
+          <input id="altri" type="number" inputmode="decimal" placeholder="es. 30000">
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:14px">
+        <button id="calc">Calcola</button>
+        <button class="secondary" id="save">Salva</button>
+        <button class="secondary" id="reset">Reset</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="kpi">
+        <div class="box">
+          <div class="t">Prezzo massimo di acquisto (totale)</div>
+          <div class="v" id="pmax">—</div>
+        </div>
+        <div class="box" style="background:#13264d">
+          <div class="t">Prezzo massimo €/mq</div>
+          <div class="v" id="pmaxmq">—</div>
+        </div>
+        <div class="box" style="background:#1b3a2b">
+          <div class="t">Ristrutturazione totale stimata</div>
+          <div class="v" id="rtotOut">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="note">
+        Suggerimento operativo: salva i valori base (es. ristrutturazione €/mq) e in visita modifichi solo mq, PV e utile%.
+      </div>
+    </div>
+  </div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+
+  const fmtEUR = (n) => {
+    if (!isFinite(n)) return "—";
+    return n.toLocaleString("it-IT", { style: "currency", currency: "EUR" });
+  };
+
+  const read = () => ({
+    mq: parseFloat($("mq").value),
+    pv: parseFloat($("pv").value),
+    rTot: parseFloat($("rTot").value),
+    rMq: parseFloat($("rMq").value),
+    uPerc: parseFloat($("uPerc").value),
+    altri: parseFloat($("altri").value) || 0
+  });
+
+  const compute = () => {
+    const v = read();
+    const mq = v.mq;
+    const pv = v.pv;
+    const u = (v.uPerc || 0) / 100;
+
+    // Ristrutturazione totale: preferisci totale, altrimenti €/mq * mq
+    let rTot = v.rTot;
+    if (!isFinite(rTot) || rTot <= 0) {
+      if (isFinite(v.rMq) && v.rMq > 0 && isFinite(mq) && mq > 0) {
+        rTot = v.rMq * mq;
+      } else {
+        rTot = 0;
+      }
+    }
+
+    const pmax = (pv * (1 - u)) - rTot - v.altri;
+
+    $("pmax").textContent = fmtEUR(pmax);
+    $("rtotOut").textContent = fmtEUR(rTot);
+
+    if (isFinite(mq) && mq > 0) {
+      $("pmaxmq").textContent = fmtEUR(pmax / mq);
+    } else {
+      $("pmaxmq").textContent = "—";
+    }
+  };
+
+  const save = () => localStorage.setItem("analisiImmobile", JSON.stringify(read()));
+  const load = () => {
+    const s = localStorage.getItem("analisiImmobile");
+    if (!s) return;
+    try {
+      const v = JSON.parse(s);
+      ["mq","pv","rTot","rMq","uPerc","altri"].forEach(k => { if (v[k] !== undefined && v[k] !== null) $(k).value = v[k]; });
+    } catch {}
+  };
+  const reset = () => {
+    localStorage.removeItem("analisiImmobile");
+    ["mq","pv","rTot","rMq","uPerc","altri"].forEach(k => $(k).value = "");
+    compute();
+  };
+
+  $("calc").addEventListener("click", compute);
+  $("save").addEventListener("click", () => { save(); compute(); alert("Valori salvati sul dispositivo."); });
+  $("reset").addEventListener("click", reset);
+
+  // PWA
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(()=>{});
+
+  load();
+  compute();
+</script>
+</body>
+</html>
